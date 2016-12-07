@@ -1,0 +1,1 @@
+ID integer autoincrement firstname varchar(20) lastname varchar(20) phonenumber char(10) EndDate Date

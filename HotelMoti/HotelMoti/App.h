@@ -6,6 +6,6 @@ class App
 public:
 
 	void run();
-
+	int select(const sqlite3& database);
 };
 

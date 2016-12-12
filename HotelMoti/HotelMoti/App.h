@@ -6,6 +6,7 @@ class App
 public:
 
 	void run();
-	int select(const sqlite3& database);
+	int selectAll(sqlite3* database);
+	int selectCond(sqlite3* database);
 };
 

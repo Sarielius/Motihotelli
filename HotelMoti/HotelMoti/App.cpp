@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <sstream>
+#include <iostream>
 
 static int callback(void* data, int colNum, char** fieldData, char** colName)
 {
@@ -29,6 +31,8 @@ void App::run()
 		printf("Error opening database!");
 	}
 	
+
+
 	char selection = 0;
 	char debug = 0;
 	char message[256] = {""};
@@ -41,16 +45,16 @@ void App::run()
 		
 		printf("Please select an action number and press Enter.\n");
 		printf("1. Print table contents\n");
-		printf("2. Write string (Select)\n");
-		printf("3. Write string (Insert)\n");
-		printf("4. Write string (Update)\n");
-		printf("5. Write string (Delete)\n");
+		printf("2. Print using a condition\n");
+		printf("3. Add a new record\n");
+		printf("4. Update an existing record\n");
+		printf("5. Delete an existing record\n");
 		
 		printf("6. Quit\n"); // Switch to last
 		
 		if (message) // Hyvvää koodiam
 		{
-			printf("\n>> %s\n\n   Key pressed debug: %d\n\n", message, selection);
+			printf("\n>> %s\n\n   Key pressed: %d\n\n", message, selection);
 		}
 
 		fflush(stdin);
@@ -68,32 +72,19 @@ void App::run()
 		switch (selection)
 		{
 		case 1:
-			// select * from table;
-			//printf("Feature pending.");
-			//sprintf_s(message, "Pending implementation!");
 			rc = selectAll(db);
-			if (rc != SQLITE_OK)
-			{
-				printf("Shit got fucked\n");
-			}
-			
 			break;
 		case 2:
-
-			selectCond(db);
-
-			/*printf("\n>> Enter message:\n\n> ");
-			fgets(message, sizeof(message), stdin);*/
+			rc = selectCond(db);
 			break;
 		case 3:
-			selectAll(db);
-			sprintf_s(message, "Pending implementation!");
+			rc = insertRec(db);
 			break;
 		case 4:
-			sprintf_s(message, "Pending implementation!");
+			rc = updateRec(db);
 			break;
 		case 5:
-			sprintf_s(message, "Pending implementation!");
+			rc = deleteRec(db);
 			break;
 		case 6:
 			running = false;
@@ -103,6 +94,18 @@ void App::run()
 			break;
 		}
 		
+		switch (rc)
+		{
+		case SQLITE_MISMATCH:
+			sprintf_s(message, "Value not matching expected type!");
+			break;
+		case SQLITE_RANGE:
+			sprintf_s(message, "Value out of range!");
+			break;
+		default:
+			break;
+		}
+
 	}
 	
 	// Close database.
@@ -110,28 +113,27 @@ void App::run()
 
 }
 
+
 int App::selectAll(sqlite3* database)
 {
 	sqlite3_stmt *stmt;
-	// Ask nice stuff about what to select and so, maybe ask for ALL first.
-	char statementData[256] = { "select * from customers;" };
-	char* msg = "Ping";
+
+	std::string statementData = "select * from customers;"; 
 	char* errorMsg = 0;
-	/*int code = sqlite3_prepare_v2(database, statementData,)*/
 	
-	int rc = sqlite3_exec(database, statementData, callback, 0, &errorMsg); // (void*)msg
+	int rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)data
 	if (rc != SQLITE_OK) // SQLITE_OK = 0
 	{
 		printf("SQL error: %s\n", errorMsg);
 		sqlite3_free(errorMsg);
-		return 1;
+		return rc;
 	}
 	else
 	{
 		printf("Operation completed succesfully!\n\n");
 	}
-
-	printf("Press any key to return.\n");
+	
+	printf("Enter a key to return.\n");
 
 	fflush(stdin);
 
@@ -142,46 +144,159 @@ int App::selectAll(sqlite3* database)
 	return 0;
 }
 
+
 int App::selectCond(sqlite3* database)
 {
 	sqlite3_stmt *stmt;
-	// Ask nice stuff about what to select and so, maybe ask for ALL first.
-	char statementData[256]; // = { "select * from customers;" };
-	char colData[64]; 
-	char condition[64];
+
 	char* errorMsg = 0;
-	size_t len;
+
+	std::stringstream ss;
+	std::string statementData;
 
 
-	printf("\n>> Enter column name (ID, firstname, lastname, phonenumber, enddate):\n\n> ");
-	fgets(colData, sizeof(colData), stdin);
+	ss << "select * from customers where ";
 
-	len = strlen(colData);
-	if (colData[len - 1] == '\n' && len != 0) // FAILS when len == 0
-	{
-		colData[len - 1] = '\0';
-	}
+	printf("\n>> Enter the column name (ID, firstname, lastname, phonenumber, enddate):\n\n> ");
+	std::cin >> statementData;
 
-	fflush(stdin);
+	ss << statementData << " like '";
 
-	printf("\n>> Enter conditional value:\n\n> ");
-	fgets(condition, sizeof(condition), stdin);
+	printf("\n>> Enter a conditional value:\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "';";
+	statementData = ss.str();
 	
-	len = strlen(condition);
-	if (condition[len - 1] == '\n' && len != 0) // FAILS when len == 0
-	{  
-		condition[len - 1] = '\0';
+	//printf("\n%s\n\n", statementData.c_str());
+	
+	int rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)msg
+	if (rc != SQLITE_OK)
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return rc;
 	}
+	else
+	{
+		printf("Operation completed successfully!\n\n");
+	}
+	
+	printf("Enter a key to return.\n");
 
 	fflush(stdin);
 
-	sprintf_s(statementData, "select * from customers where %s like '%s';", colData, condition);
+	printf("> ");
+
+	char selection = getchar();
+
+	return 0;
+}
 
 
-	printf("\n%s\n\n", statementData);
+int App::insertRec(sqlite3* database)
+{
+	sqlite3_stmt *stmt;
+	
+	char* errorMsg = 0;
 
-	int rc = sqlite3_exec(database, statementData, callback, 0, &errorMsg); // (void*)msg
+	std::stringstream ss;
+	std::string statementData;
+
+	// Repeated concatenation of strings is good for you. Shlemiel says hi.
+	// Usability vs efficiency? 
+
+	ss << "insert into customers (firstname, lastname, phonenumber, enddate) values ('";
+
+	printf("\n>> Enter the client's first name:\n\n> ");
+	std::cin >> statementData;
+	ss << statementData << "','";
+
+	printf("\n>> Enter the client's surname:\n\n> ");
+	std::cin >> statementData;
+	ss << statementData << "',";
+
+	printf("\n>> Enter the client's phonenumber (10 numbers):\n\n> ");
+	std::cin >> statementData;
+	ss << statementData << ",'";
+
+	printf("\n>> Enter the end date of the reservation (dd.mm.yyyy format):\n\n> ");
+	std::cin >> statementData;
+	ss << statementData << "');";
+
+	statementData = ss.str();
+
+	//printf("\n%s\n\n", statementData.c_str());
+
+	int rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)msg
+	if (rc != SQLITE_OK)
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return rc;
+	}
+	else
+	{
+		printf("Operation completed succesfully!\n\n");
+	}
+
+	printf("Enter a key to return.\n");
+
+	fflush(stdin);
+
+	printf("> ");
+
+	char selection = getchar();
+
+	return 0;
+}
+
+
+int App::updateRec(sqlite3* database)
+{
+	sqlite3_stmt *stmt;
+
+	char* errorMsg = 0;
+
+	std::stringstream ss;
+	std::string statementData = "select * from customers;";
+
+	int rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)data
 	if (rc != SQLITE_OK) // SQLITE_OK = 0
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return rc;
+	}
+
+	ss << "update customers set ";
+
+	printf("\n>> Enter the column name which you wish to UPDATE:\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "='";
+
+	printf("\n>> Enter the UPDATED VALUE for the selected column:\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "' where ";
+
+	printf("\n>> Enter the column name by which to apply the update (e.g. -> FIRSTNAME=kallu):\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "='";
+
+	printf("\n>> Enter a value for the condition column (e.g. firstname=KALLU <-):\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "';";
+
+	statementData = ss.str();
+
+	
+
+	rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)msg
+	if (rc != SQLITE_OK)
 	{
 		printf("SQL error: %s\n", errorMsg);
 		sqlite3_free(errorMsg);
@@ -189,10 +304,98 @@ int App::selectCond(sqlite3* database)
 	}
 	else
 	{
-		printf("Operation completed succesfully!\n\n");
+		system("cls");
 	}
+	statementData = "select * from customers;";
+
+	//printf("\n%s\n\n", statementData.c_str());
+
+	rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)data
+	if (rc != SQLITE_OK) // SQLITE_OK = 0
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return rc;
+	}
+	else
+	{
+		printf("Operation completed succesfully!\nValue(s) updated!\n\n");
+	}
+
+	printf("Enter a key to return.\n");
+
+	fflush(stdin);
+
+	printf("> ");
+
+	char selection = getchar();
+
+	return 0;
+}
+
+
+int App::deleteRec(sqlite3* database)
+{
+	sqlite3_stmt *stmt;
 	
-	printf("Press any key to return.\n");
+	char* errorMsg = 0;
+
+	std::stringstream ss;
+	std::string statementData = "select * from customers;";
+
+	int rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)data
+	if (rc != SQLITE_OK) // SQLITE_OK = 0
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return rc;
+	}
+
+	ss << "delete from customers where ";
+
+	printf("\n>> Enter the column name by which to DELETE\n   CAUTION! USE ID TO PREVENT ACCIDENTAL DELETIONS!:\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "='";
+
+	printf("\n>> Enter a VALUE by which to DELETE:\n\n> ");
+	std::cin >> statementData;
+
+	ss << statementData << "';";
+
+	statementData = ss.str();
+
+	
+
+	rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)msg
+	if (rc != SQLITE_OK) 
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return 1;
+	}
+	else
+	{
+		system("cls");
+	}
+
+	//printf("\n%s\n\n", statementData.c_str());
+
+	statementData = "select * from customers;";
+
+	rc = sqlite3_exec(database, statementData.c_str(), callback, 0, &errorMsg); // (void*)data
+	if (rc != SQLITE_OK) // SQLITE_OK = 0
+	{
+		printf("SQL error: %s\n", errorMsg);
+		sqlite3_free(errorMsg);
+		return rc;
+	}
+	else
+	{
+		printf("Operation completed succesfully!\nEntry deleted!\n\n");
+	}
+
+	printf("Enter a key to return.\n");
 
 	fflush(stdin);
 

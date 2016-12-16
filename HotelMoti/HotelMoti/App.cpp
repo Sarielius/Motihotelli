@@ -1,4 +1,5 @@
 #include "App.h"
+#include "sqlite3.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -49,7 +50,6 @@ void App::run()
 		printf("3. Add a new record\n");
 		printf("4. Update an existing record\n");
 		printf("5. Delete an existing record\n");
-		
 		printf("6. Quit\n"); // Switch to last
 		
 		if (message) // Hyvv‰‰ koodiam
@@ -353,7 +353,7 @@ int App::deleteRec(sqlite3* database)
 
 	ss << "delete from customers where ";
 
-	printf("\n>> Enter the column name by which to DELETE\n   CAUTION! USE ID TO PREVENT ACCIDENTAL DELETIONS!:\n\n> ");
+	printf("\n>> Enter the column name by which to DELETE\n\n   CAUTION! USE ID TO PREVENT ACCIDENTAL DELETIONS!:\n\n> ");
 	std::cin >> statementData;
 
 	ss << statementData << "='";
